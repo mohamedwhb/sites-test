@@ -1,25 +1,62 @@
-const { createServer } = require('http');
-const { parse } = require('url');
-const next = require('next');
+const http = require('http');
+const url = require('url');
 
-const dev = process.env.NODE_ENV !== 'production';
-const app = next({ dev });
-const handle = app.getRequestHandler();
+exports.handler = async function(event, context) {
+  // Parse the request URL
+  const parsedUrl = url.parse(event.rawUrl);
+  const pathname = parsedUrl.pathname;
 
-app.prepare().then(() => {
-  createServer((req, res) => {
-    const parsedUrl = parse(req.url, true);
-    const { pathname } = parsedUrl;
+  // Handle API requests
+  if (pathname.startsWith('/api/')) {
+    // Forward the request to your Django backend
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    const apiPath = pathname.replace('/api', '');
+    
+    try {
+      const response = await new Promise((resolve, reject) => {
+        const req = http.request(`${backendUrl}${apiPath}`, {
+          method: event.httpMethod,
+          headers: event.headers,
+        }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          res.on('end', () => {
+            resolve({
+              statusCode: res.statusCode,
+              headers: res.headers,
+              body: data
+            });
+          });
+        });
+        
+        req.on('error', (error) => {
+          reject(error);
+        });
+        
+        if (event.body) {
+          req.write(event.body);
+        }
+        req.end();
+      });
 
-    if (pathname.startsWith('/api/')) {
-      // Handle API requests
-      handle(req, res, parsedUrl);
-    } else {
-      // Handle all other requests
-      handle(req, res, parsedUrl);
+      return {
+        statusCode: response.statusCode,
+        headers: response.headers,
+        body: response.body
+      };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: 'Failed to proxy request to backend' })
+      };
     }
-  }).listen(3000, (err) => {
-    if (err) throw err;
-    console.log('> Ready on http://localhost:3000');
-  });
-}); 
+  }
+
+  // For non-API requests, return a 404
+  return {
+    statusCode: 404,
+    body: JSON.stringify({ error: 'Not found' })
+  };
+}; 
