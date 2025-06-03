@@ -1,10 +1,42 @@
 const http = require('http');
 const url = require('url');
+const path = require('path');
+const fs = require('fs');
 
 exports.handler = async function(event, context) {
   // Parse the request URL
   const parsedUrl = url.parse(event.rawUrl);
   const pathname = parsedUrl.pathname;
+
+  // Handle static files
+  if (pathname.startsWith('/static/')) {
+    try {
+      const staticPath = path.join(__dirname, '../../backend/staticfiles', pathname.replace('/static/', ''));
+      const fileContent = fs.readFileSync(staticPath);
+      const contentType = getContentType(pathname);
+      
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=31536000',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: fileContent.toString('base64'),
+        isBase64Encoded: true
+      };
+    } catch (error) {
+      console.error('Error serving static file:', error);
+      return {
+        statusCode: 404,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: 'Static file not found'
+      };
+    }
+  }
 
   // Handle API and admin requests
   if (pathname.startsWith('/api/') || pathname.startsWith('/admin/')) {
@@ -82,4 +114,25 @@ exports.handler = async function(event, context) {
     },
     body: JSON.stringify({ error: 'Not found' })
   };
-}; 
+};
+
+function getContentType(pathname) {
+  const ext = path.extname(pathname).toLowerCase();
+  const contentTypes = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
+    '.eot': 'application/vnd.ms-fontobject'
+  };
+  return contentTypes[ext] || 'application/octet-stream';
+} 

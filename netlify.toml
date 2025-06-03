@@ -1,12 +1,18 @@
 [build]
   command = "npm run build"
   publish = ".next"
+  environment = { NEXT_PUBLIC_API_URL = "https://sisters-deko.netlify.app/api" }
 
 [build.environment]
   NEXT_PUBLIC_API_URL = "https://sisters-deko.netlify.app/api"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+[[redirects]]
+  from = "/admin/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
 
 [[redirects]]
   from = "/api/*"
@@ -16,4 +22,25 @@
 [[redirects]]
   from = "/*"
   to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/_next/static/*"
+  to = "/static/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/_next/image*"
+  query = { q = ":quality", url = ":url", w = ":width" }
+  to = "/_ipx/w_:width,q_:quality/:url"
+  status = 301
+
+[[redirects]]
+  from = "/_ipx/*"
+  to = "/.netlify/builders/_ipx"
+  status = 200
+
+[[redirects]]
+  from = "/static/*"
+  to = "/.netlify/functions/api/static/:splat"
   status = 200 
