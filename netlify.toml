@@ -1,7 +1,6 @@
 [build]
   command = "npm run build"
   publish = ".next"
-  environment = { NEXT_PUBLIC_API_URL = "https://sisters-deko.netlify.app/api" }
 
 [build.environment]
   NEXT_PUBLIC_API_URL = "https://sisters-deko.netlify.app/api"
