@@ -6,17 +6,22 @@ exports.handler = async function(event, context) {
   const parsedUrl = url.parse(event.rawUrl);
   const pathname = parsedUrl.pathname;
 
-  // Handle API requests
-  if (pathname.startsWith('/api/')) {
+  // Handle API and admin requests
+  if (pathname.startsWith('/api/') || pathname.startsWith('/admin/')) {
     // Forward the request to your Django backend
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
-    const apiPath = pathname.replace('/api', '');
+    const apiPath = pathname.startsWith('/api/') ? pathname.replace('/api', '') : pathname;
     
     try {
       const response = await new Promise((resolve, reject) => {
         const req = http.request(`${backendUrl}${apiPath}`, {
           method: event.httpMethod,
-          headers: event.headers,
+          headers: {
+            ...event.headers,
+            'host': new URL(backendUrl).host,
+            'origin': backendUrl,
+            'referer': `${backendUrl}${apiPath}`
+          },
         }, (res) => {
           let data = '';
           res.on('data', (chunk) => {
@@ -25,13 +30,19 @@ exports.handler = async function(event, context) {
           res.on('end', () => {
             resolve({
               statusCode: res.statusCode,
-              headers: res.headers,
+              headers: {
+                ...res.headers,
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+              },
               body: data
             });
           });
         });
         
         req.on('error', (error) => {
+          console.error('Request error:', error);
           reject(error);
         });
         
@@ -47,9 +58,17 @@ exports.handler = async function(event, context) {
         body: response.body
       };
     } catch (error) {
+      console.error('Error in API function:', error);
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Failed to proxy request to backend' })
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({ 
+          error: 'Failed to proxy request to backend',
+          details: error.message 
+        })
       };
     }
   }
@@ -57,6 +76,10 @@ exports.handler = async function(event, context) {
   // For non-API requests, return a 404
   return {
     statusCode: 404,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
+    },
     body: JSON.stringify({ error: 'Not found' })
   };
 }; 
